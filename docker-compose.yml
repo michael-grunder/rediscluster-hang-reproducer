@@ -1,0 +1,149 @@
+services:
+  redis-node-1:
+    image: redis:8.0
+    container_name: redis-node-1
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    ports:
+      - "7001:6379"
+    command: [
+      "redis-server",
+      "--port", "6379",
+      "--protected-mode", "no",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "node1.conf",
+      "--cluster-node-timeout", "${REDIS_NODE_TIMEOUT}",
+    ]
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.2
+  redis-node-2:
+    image: redis:8.0
+    container_name: redis-node-2
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    ports:
+      - "7002:6379"
+    command: [
+      "redis-server",
+      "--port", "6379",
+      "--protected-mode", "no",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "node2.conf",
+      "--cluster-node-timeout", "${REDIS_NODE_TIMEOUT}",
+    ]
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.3
+  redis-node-3:
+    image: redis:8.0
+    container_name: redis-node-3
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    ports:
+      - "7003:6379"
+    command: [
+      "redis-server",
+      "--port", "6379",
+      "--protected-mode", "no",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "node3.conf",
+      "--cluster-node-timeout", "${REDIS_NODE_TIMEOUT}",
+    ]
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.4
+  redis-node-4:
+    image: redis:8.0
+    container_name: redis-node-4
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    ports:
+      - "7004:6379"
+    command: [
+      "redis-server",
+      "--port", "6379",
+      "--protected-mode", "no",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "node4.conf",
+      "--cluster-node-timeout", "${REDIS_NODE_TIMEOUT}",
+    ]
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.5
+  redis-node-5:
+    image: redis:8.0
+    container_name: redis-node-5
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    ports:
+      - "7005:6379"
+    command: [
+      "redis-server",
+      "--port", "6379",
+      "--protected-mode", "no",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "node5.conf",
+      "--cluster-node-timeout", "${REDIS_NODE_TIMEOUT}",
+    ]
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.6
+
+  redis-node-6:
+    image: redis:8.0
+    container_name: redis-node-6
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    ports:
+      - "7006:6379"
+    command: [
+      "redis-server",
+      "--port", "6379",
+      "--protected-mode", "no",
+      "--requirepass", "${REDIS_PASSWORD}",
+      "--masterauth", "${REDIS_PASSWORD}",
+      "--cluster-enabled", "yes",
+      "--cluster-config-file", "node6.conf",
+      "--cluster-node-timeout", "${REDIS_NODE_TIMEOUT}",
+    ]
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.7
+  phpredis:
+    image: mgrunder/phpredis-cluster-client:develop
+    container_name: phpredis-client
+    depends_on:
+      - redis-node-1
+      - redis-node-2
+      - redis-node-3
+      - redis-node-4
+      - redis-node-5
+      - redis-node-6
+    environment:
+      REDISCLI_AUTH: "${REDIS_PASSWORD}"
+    networks:
+      redis-cluster:
+        ipv4_address: 172.28.0.8
+    cap_add:
+      - SYS_PTRACE
+      - PERFMON
+    security_opt:
+      - seccomp=unconfined
+    command: ["bash", "/root/bootstrap.sh"]
+networks:
+  redis-cluster:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
