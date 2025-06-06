@@ -10,6 +10,16 @@ function toFailoverConstant(string $value): ?int {
     };
 }
 
+function toFailoverString(int $value): string {
+    return match ($value) {
+        RedisCluster::FAILOVER_NONE => 'none',
+        RedisCluster::FAILOVER_ERROR => 'error',
+        RedisCluster::FAILOVER_DISTRIBUTE => 'distribute',
+        RedisCluster::FAILOVER_DISTRIBUTE_SLAVES => 'distribute-slaves',
+        default => throw new Exception("Unknown failover const"),
+    };
+}
+
 $opts = getopt('', [
     'timeout::',         // connection timeout (seconds)
     'read-timeout::',    // read timeout (seconds)
@@ -67,13 +77,21 @@ if (!$auth) {
 function connectCluster(array $seeds, float $timeout, float $rto, int $retries,
                         ?string $auth, int $failover): RedisCluster
 {
-    printf("[%.3f] Connecting (timeout: %.2f/%.2f, retries: %d, failover: %d)...\n",
-           microtime(true), $timeout, $rto, $retries, $failover);
+    printf("[%.3f] Connecting (timeout: %.2f/%.2f, retries: %d, failover: %s)...\n",
+           microtime(true), $timeout, $rto, $retries, toFailoverString($failover));
 
     $t0 = microtime(true);
     $c  = new RedisCluster(null, $seeds, $timeout, $rto, false, $auth);
-    $c->setOption(Redis::OPT_MAX_RETRIES, $retries);
-    $c->setOption(RedisCluster::OPT_FAILOVER, $failover);
+
+    if ($c->setOption(Redis::OPT_MAX_RETRIES, $retries) == false) {
+        fprintf(STDERR, "Error: Can't set max-retries?\n");
+        exit(1);
+    }
+
+    if ($c->setOption(RedisCluster::OPT_SLAVE_FAILOVER, $failover) == false) {
+        fprintf(STDERR, "Error: Can't set failov er mode?\n");
+        exit(1);
+    }
 
     printf("[%.3f] Connected (%.4fs)\n", microtime(true), microtime(true) - $t0);
 
@@ -103,7 +121,7 @@ $lastPrint   = microtime(true);
 while (true) {
     try {
         $cluster ??= connectCluster(SEEDS, $timeout, $readTimeout, $maxRetries,
-                                    $auth, $failover);
+                                    $auth, $failover_opt);
 
         $cmd = $commands[array_rand($commands)];
 
