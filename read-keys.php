@@ -21,6 +21,7 @@ function toFailoverString(int $value): string {
 }
 
 $opts = getopt('', [
+    'keys:',             // Number of keys
     'timeout::',         // connection timeout (seconds)
     'read-timeout::',    // read timeout (seconds)
     'max-retries::',     // PhpRedis OPT_MAX_RETRIES
@@ -40,7 +41,7 @@ const SEEDS = [
     '172.28.0.7:6379',
 ];
 
-const KEYS                 = 100;
+const DEFAULT_KEYS         = 100;
 const DEFAULT_TIMEOUT      = 0.1;
 const DEFAULT_READ_TIMEOUT = 0.1;
 const DEFAULT_MAX_RETRIES  = 1;
@@ -49,6 +50,7 @@ const DEFAULT_TICK         = 1.0;
 const DEFAULT_COMMANDS     = ['GET', 'SET', 'MGET', 'PING'];
 const DEFAULT_FAILOVER     = 'distribute';
 
+$keys        = (int)($opts['keys'] ?? DEFAULT_KEYS);
 $timeout     = (float)($opts['timeout']      ?? DEFAULT_TIMEOUT);
 $readTimeout = (float)($opts['read-timeout'] ?? DEFAULT_READ_TIMEOUT);
 $maxRetries  = (int)  ($opts['max-retries']  ?? DEFAULT_MAX_RETRIES);
@@ -98,21 +100,32 @@ function connectCluster(array $seeds, float $timeout, float $rto, int $retries,
     return $c;
 }
 
-function runCommand(RedisCluster $rc, string $cmd, int $idx): mixed {
-    $key1 = "string:$idx";
-    $key2 = "string:" . ($idx + 1) % KEYS;
+function getKeys(string $type, int $keys, int $n): array {
+    $result = [];
 
+    assert($n > 0);
+
+    for ($i = 0; $i < $n; $i++) {
+        $result[] = sprintf("%s:%d", $type, rand() % $keys);
+    }
+
+    return $result;
+}
+
+function getKey(string $type, int $keys): string {
+    return sprintf("%s:%d", $type, rand() % $keys);
+}
+
+function runCommand(RedisCluster $rc, string $cmd, int $keys): mixed {
     switch ($cmd) {
-        case 'MGET':
-            return $rc->mget([$key1, $key2]);
         case 'GET':
-            return $rc->get($key1);
-        case 'SET':
-            return $rc->set($key1, "value:$idx");
         case 'PING':
-            return $rc->ping($key1);
         case 'ECHO':
-            return $rc->echo($idx, "hello:$idx");
+            return $rc->{$cmd}(getKey('string', $keys));
+        case 'SET':
+            return $rc->set(getKey('string', $keys), "value:" . time());
+        case 'MGET':
+            return $rc->mget(getKeys('string', $keys, rand(1, 5)));
         default:
             throw new InvalidArgumentException("Unknown command $cmd");
     }
@@ -141,14 +154,13 @@ while (++$counter) {
             }
         }
 
-        $idx = $counter % KEYS;
         $t0  = microtime(true);
-        $res = runCommand($cluster, $cmd, $idx);
+        $res = runCommand($cluster, $cmd, $keys);
         $t1  = microtime(true);
 
         if (($t1 - $lastPrint) >= $tick && !$inMulti) {
-            printf("[%.3f #%d %s] %s string:%d -> %s (%.4fs)\n",
-                   $inMulti ? 'M' : 'A', $t1, $counter, $cmd, $idx,
+            printf("[%.3f #%d %s] %s -> %s (%.4fs)\n",
+                   $inMulti ? 'M' : 'A', $t1, $counter, $cmd,
                    var_export($res, true), $t1 - $t0);
             $lastPrint = $t1;
         }
