@@ -1,85 +1,143 @@
 <?php
 
+function toFailoverConstant(string $value): ?int {
+    return match (strtoupper($value)) {
+        'NONE' => RedisCluster::FAILOVER_NONE,
+        'ERROR' => RedisCluster::FAILOVER_ERROR,
+        'DISTRIBUTE' => RedisCluster::FAILOVER_DISTRIBUTE,
+        'DISTRIBUTE_SLAVES' => RedisCluster::FAILOVER_DISTRIBUTE_SLAVES,
+        default => NULL,
+    };
+}
+
 $opts = getopt('', [
-    'timeout::',
-    'read-timeout::',
-    'max-retries::',
-    'sleep:',
+    'timeout::',         // connection timeout (seconds)
+    'read-timeout::',    // read timeout (seconds)
+    'max-retries::',     // PhpRedis OPT_MAX_RETRIES
+    'failover:',         // Failover mode (default: FAILOVER_DISTRIBUTE)
+    'sleep::',           // usleep between ops (seconds, float)
+    'tick::',            // how often (seconds) to print status
+    'commands::',        // comma‑list of commands (GET,SET,PING)
+    'multi',             // enable occasional MULTI/EXEC blocks
 ]);
 
-define('SEEDS', [
+const SEEDS = [
     '172.28.0.2:6379',
     '172.28.0.3:6379',
     '172.28.0.4:6379',
     '172.28.0.5:6379',
     '172.28.0.6:6379',
     '172.28.0.7:6379',
-]);
+];
 
-define('KEYS', 1000);
-define('DEFAULT_TIMEOUT', .1);
-define('DEFAULT_READ_TIMEOUT', .1);
-define('DEFAULT_MAX_RETRIES', 1);
-define('DEFAULT_SLEEP', 0.1);
+const KEYS                 = 1_000;
+const DEFAULT_TIMEOUT      = 0.1;
+const DEFAULT_READ_TIMEOUT = 0.1;
+const DEFAULT_MAX_RETRIES  = 1;
+const DEFAULT_SLEEP        = 0.1;
+const DEFAULT_TICK         = 1.0;
+const DEFAULT_COMMANDS     = ['GET', 'SET', 'PING'];
+const DEFAULT_FAILOVER     = 'distribute';
 
-$timeout = (float)($opts['timeout'] ?? DEFAULT_TIMEOUT);
+$timeout     = (float)($opts['timeout']      ?? DEFAULT_TIMEOUT);
 $readTimeout = (float)($opts['read-timeout'] ?? DEFAULT_READ_TIMEOUT);
-$maxRetries = (int)($opts['max-retries'] ?? DEFAULT_MAX_RETRIES);
-$sleep = (float)($opts['sleep'] ?? DEFAULT_SLEEP);
-$sleep_usec = (int)($sleep * 1_000_000);
+$maxRetries  = (int)  ($opts['max-retries']  ?? DEFAULT_MAX_RETRIES);
+$sleep       = (float)($opts['sleep']        ?? DEFAULT_SLEEP);
+$tick        = (float)($opts['tick']         ?? DEFAULT_TICK);
+$failover    = $opt['failover'] ?? DEFAULT_FAILOVER;
+$sleep_usec  = (int)($sleep * 1_000_000);
+$useMulti    = isset($opt['multi']);
+
+$commands = $opt['commands'] ?? DEFAULT_COMMANDS;
+if ( ! is_array($commands) ) {
+    $commands = explode(',', $commands);
+}
+
+$failover_opt = toFailoverConstant($failover);
+if ($failover_opt === null) {
+    fprintf(STDERR, "Invalid failover mode '%s'. Valid values are: NONE, ERROR, DISTRIBUTE, DISTRIBUTE_SLAVES.\n", $failover);
+    exit(1);
+}
 
 $auth = getenv('REDISCLI_AUTH') ?: null;
 if (!$auth) {
-    fwrite(STDERR, "WARNING: REDISCLI_AUTH not set. Connecting without authentication.\n");
+    fwrite(STDERR, "WARNING: Connecting without authentication.\n");
 }
 
-/**
- * Attempt to connect to the Redis cluster.
- */
-function connectCluster(array $seeds, float $timeout, float $readTimeout, int $maxRetries, ?string $auth): RedisCluster
+function connectCluster(array $seeds, float $timeout, float $rto, int $retries,
+                        ?string $auth, int $failover): RedisCluster
 {
-    printf("[%.2f] Connecting (timeout: %.2f, readTimeout: %.2f, max_retries: %d)...\n",
-           microtime(true), $timeout, $readTimeout, $maxRetries);
-    $start = microtime(true);
+    printf("[%.3f] Connecting (timeout: %.2f/%.2f, retries: %d, failover: %d)...\n",
+           microtime(true), $timeout, $rto, $retries, $failover);
 
-    $cluster = new RedisCluster(
-        null,
-        $seeds,
-        $timeout,
-        $readTimeout,
-        false,
-        $auth
-    );
+    $t0 = microtime(true);
+    $c  = new RedisCluster(null, $seeds, $timeout, $rto, false, $auth);
+    $c->setOption(Redis::OPT_MAX_RETRIES, $retries);
+    $c->setOption(RedisCluster::OPT_FAILOVER, $failover);
 
-    $cluster->setOption(Redis::OPT_MAX_RETRIES, $maxRetries);
+    printf("[%.3f] Connected (%.4fs)\n", microtime(true), microtime(true) - $t0);
 
-    $end = microtime(true);
-    printf("[%.2f] Cluster connected (%.4f sec)\n", $end, $end - $start);
-    return $cluster;
+    return $c;
 }
 
-$cluster = null;
-$n = 0;
+function runCommand(RedisCluster $rc, string $cmd, int $idx): mixed
+{
+    $key = "string:$idx";
+    switch ($cmd) {
+        case 'GET':
+            return $rc->get($key);
+        case 'SET':
+            return $rc->set($key, "value:$idx");
+        case 'PING':
+            return $rc->ping($key);
+        default:
+            throw new InvalidArgumentException("Unknown command $cmd");
+    }
+}
+
+$cluster     = null;
+$counter     = 0;
+$inMulti     = false;
+$lastPrint   = microtime(true);
 
 while (true) {
     try {
         $cluster ??= connectCluster(SEEDS, $timeout, $readTimeout, $maxRetries,
-                                    $auth);
+                                    $auth, $failover);
 
-        $key = sprintf("string:%d", $n % KEYS);
-        printf("[%.2f %d] GET %s => ", microtime(true), $n, $key);
-        $t1 = microtime(true);
-        $val = $cluster->get($key);
-        $t2 = microtime(true);
-        printf("%s (%.4f sec)\n", var_export($val, true), $t2 - $t1);
-        $n++;
+        $cmd = $commands[array_rand($commands)];
 
-    } catch (Exception $ex) {
-        $t = microtime(true);
-        fprintf(STDERR, "[%.2f] Exception: %s\n", $t, $ex->getMessage());
-        $cluster = null;
+        if ($useMulti) {
+            if (!$inMulti && mt_rand(0, 99) < 2) {
+                $cluster->multi();
+                $inMulti = true;
+            } elseif ($inMulti && mt_rand(0, 99) < 10) {
+                $cluster->exec();
+                $inMulti = false;
+            }
+        }
+
+        $idx  = $counter % KEYS;
+        $t0   = microtime(true);
+        $res  = runCommand($cluster, $cmd, $idx);
+        $t1   = microtime(true);
+        $counter++;
+
+        // Periodic status ---------------------------------------------------
+        if (($t1 - $lastPrint) >= $tick && !$inMulti) {
+            printf("[%.3f #%d] %s string:%d -> %s (%.4fs)\n",
+                   $t1, $counter, $cmd, $idx,
+                   is_bool($res) ? ($res ? 'TRUE' : 'FALSE') : $res, $t1 - $t0);
+            $lastPrint = $t1;
+        }
+
+    } catch (Throwable $e) {
+        fprintf(STDERR, "[%.3f] Exception: %s\n", microtime(true),
+                $e->getMessage());
+        $cluster = null; // force reconnect
+        $inMulti = false;
     }
 
-    if ($sleep > 0)
+    if ($sleep_usec > 0)
         usleep($sleep_usec);
 }
