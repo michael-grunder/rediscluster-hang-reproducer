@@ -9,6 +9,7 @@ services:
     command: [
       "redis-server",
       "--port", "6379",
+      "--protected-mode", "no",
       "--requirepass", "${REDIS_PASSWORD}",
       "--masterauth", "${REDIS_PASSWORD}",
       "--cluster-enabled", "yes",
@@ -28,6 +29,7 @@ services:
     command: [
       "redis-server",
       "--port", "6379",
+      "--protected-mode", "no",
       "--requirepass", "${REDIS_PASSWORD}",
       "--masterauth", "${REDIS_PASSWORD}",
       "--cluster-enabled", "yes",
@@ -47,6 +49,7 @@ services:
     command: [
       "redis-server",
       "--port", "6379",
+      "--protected-mode", "no",
       "--requirepass", "${REDIS_PASSWORD}",
       "--masterauth", "${REDIS_PASSWORD}",
       "--cluster-enabled", "yes",
@@ -66,6 +69,7 @@ services:
     command: [
       "redis-server",
       "--port", "6379",
+      "--protected-mode", "no",
       "--requirepass", "${REDIS_PASSWORD}",
       "--masterauth", "${REDIS_PASSWORD}",
       "--cluster-enabled", "yes",
@@ -85,6 +89,7 @@ services:
     command: [
       "redis-server",
       "--port", "6379",
+      "--protected-mode", "no",
       "--requirepass", "${REDIS_PASSWORD}",
       "--masterauth", "${REDIS_PASSWORD}",
       "--cluster-enabled", "yes",
@@ -105,6 +110,7 @@ services:
     command: [
       "redis-server",
       "--port", "6379",
+      "--protected-mode", "no",
       "--requirepass", "${REDIS_PASSWORD}",
       "--masterauth", "${REDIS_PASSWORD}",
       "--cluster-enabled", "yes",
