@@ -40,7 +40,7 @@ const SEEDS = [
     '172.28.0.7:6379',
 ];
 
-const KEYS                 = 1_000;
+const KEYS                 = 100;
 const DEFAULT_TIMEOUT      = 0.1;
 const DEFAULT_READ_TIMEOUT = 0.1;
 const DEFAULT_MAX_RETRIES  = 1;
@@ -98,9 +98,9 @@ function connectCluster(array $seeds, float $timeout, float $rto, int $retries,
     return $c;
 }
 
-function runCommand(RedisCluster $rc, string $cmd, int $idx): mixed
-{
+function runCommand(RedisCluster $rc, string $cmd, int $idx): mixed {
     $key = "string:$idx";
+
     switch ($cmd) {
         case 'GET':
             return $rc->get($key);
@@ -113,10 +113,10 @@ function runCommand(RedisCluster $rc, string $cmd, int $idx): mixed
     }
 }
 
-$cluster     = null;
-$counter     = 0;
-$inMulti     = false;
-$lastPrint   = microtime(true);
+$cluster   = null;
+$counter   = 0;
+$inMulti   = false;
+$lastPrint = microtime(true);
 
 while (true) {
     try {
@@ -141,18 +141,16 @@ while (true) {
         $t1   = microtime(true);
         $counter++;
 
-        // Periodic status ---------------------------------------------------
         if (($t1 - $lastPrint) >= $tick && !$inMulti) {
-            printf("[%.3f #%d] %s string:%d -> %s (%.4fs)\n",
-                   $t1, $counter, $cmd, $idx,
-                   is_bool($res) ? ($res ? 'TRUE' : 'FALSE') : $res, $t1 - $t0);
+            printf("[%.3f #%d] %s string:%d -> %s (%.4fs)\n", $t1, $counter,
+                   $cmd, $idx, var_export($res, true), $t1 - $t0);
             $lastPrint = $t1;
         }
 
     } catch (Throwable $e) {
         fprintf(STDERR, "[%.3f] Exception: %s\n", microtime(true),
                 $e->getMessage());
-        $cluster = null; // force reconnect
+        $cluster = null;
         $inMulti = false;
     }
 
