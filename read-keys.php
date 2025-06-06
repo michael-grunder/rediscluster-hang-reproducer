@@ -46,7 +46,7 @@ const DEFAULT_READ_TIMEOUT = 0.1;
 const DEFAULT_MAX_RETRIES  = 1;
 const DEFAULT_SLEEP        = 0.1;
 const DEFAULT_TICK         = 1.0;
-const DEFAULT_COMMANDS     = ['GET', 'SET', 'PING'];
+const DEFAULT_COMMANDS     = ['GET', 'SET', 'MGET', 'PING'];
 const DEFAULT_FAILOVER     = 'distribute';
 
 $timeout     = (float)($opts['timeout']      ?? DEFAULT_TIMEOUT);
@@ -99,15 +99,20 @@ function connectCluster(array $seeds, float $timeout, float $rto, int $retries,
 }
 
 function runCommand(RedisCluster $rc, string $cmd, int $idx): mixed {
-    $key = "string:$idx";
+    $key1 = "string:$idx";
+    $key2 = "string:" . ($idx + 1) % KEYS;
 
     switch ($cmd) {
+        case 'MGET':
+            return $rc->mget([$key1, $key2]);
         case 'GET':
-            return $rc->get($key);
+            return $rc->get($key1);
         case 'SET':
-            return $rc->set($key, "value:$idx");
+            return $rc->set($key1, "value:$idx");
         case 'PING':
-            return $rc->ping($key);
+            return $rc->ping($key1);
+        case 'ECHO':
+            return $rc->echo($idx, "hello:$idx");
         default:
             throw new InvalidArgumentException("Unknown command $cmd");
     }
@@ -117,8 +122,9 @@ $cluster   = null;
 $counter   = 0;
 $inMulti   = false;
 $lastPrint = microtime(true);
+$counter = 0;
 
-while (true) {
+while (++$counter) {
     try {
         $cluster ??= connectCluster(SEEDS, $timeout, $readTimeout, $maxRetries,
                                     $auth, $failover_opt);
@@ -135,15 +141,15 @@ while (true) {
             }
         }
 
-        $idx  = $counter % KEYS;
-        $t0   = microtime(true);
-        $res  = runCommand($cluster, $cmd, $idx);
-        $t1   = microtime(true);
-        $counter++;
+        $idx = $counter % KEYS;
+        $t0  = microtime(true);
+        $res = runCommand($cluster, $cmd, $idx);
+        $t1  = microtime(true);
 
         if (($t1 - $lastPrint) >= $tick && !$inMulti) {
-            printf("[%.3f #%d] %s string:%d -> %s (%.4fs)\n", $t1, $counter,
-                   $cmd, $idx, var_export($res, true), $t1 - $t0);
+            printf("[%.3f #%d %s] %s string:%d -> %s (%.4fs)\n",
+                   $inMulti ? 'M' : 'A', $t1, $counter, $cmd, $idx,
+                   var_export($res, true), $t1 - $t0);
             $lastPrint = $t1;
         }
 
