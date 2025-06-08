@@ -13,7 +13,7 @@ docker compose up -d --remove-orphans
 Once the containers are running, you can attempt to start Reading keys with `ARedisCluster`.
 
 ```bash
-$ docker compose exec phpredis-client bash
+$ docker compose exec phpredis bash
 # Now you want to start a recording debugging session that reads keys
 $ rr record /root/read-keys.php
 ```
