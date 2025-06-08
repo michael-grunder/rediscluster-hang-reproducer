@@ -1,17 +1,17 @@
 <?php declare(strict_types=1);
 
 $cliOpts = getopt('', [
-    'keys::',          // how many distinct keys in the key-space
-    'timeout::',       // connect timeout (s)
-    'read-timeout::',  // read timeout (s)
-    'max-retries::',   // PhpRedis OPT_MAX_RETRIES
-    'failover::',      // NONE|ERROR|DISTRIBUTE|DISTRIBUTE_SLAVES
-    'sleep::',         // delay between ops (s float)
-    'tick::',          // how often to print status (s)
-    'commands::',      // CSV list to restrict commands
-    'types::',         // CSV list to restrict key types
-    'mode::',          // read|write|all
-    'multi',           // enable random MULTI/EXEC
+    'keys:',         // how many distinct keys in the key-space
+    'timeout:',      // connect timeout (s)
+    'read-timeout:', // read timeout (s)
+    'max-retries:',  // PhpRedis OPT_MAX_RETRIES
+    'failover:',     // NONE|ERROR|DISTRIBUTE|DISTRIBUTE_SLAVES
+    'sleep:',        // delay between ops (s float)
+    'tick:',         // how often to print status (s)
+    'commands:',    // CSV list to restrict commands
+    'types:',       // CSV list to restrict key types
+    'mode:',        // read|write|all
+    'multi',         // enable random MULTI/EXEC
 ]);
 
 const DEFAULTS = [
@@ -34,7 +34,6 @@ foreach ($cliOpts as $k => $v) {
     $k            = str_replace('-', '_', $k);
     $config[$k]   = $v !== false ? $v : true;   // flags → bool true
 }
-
 
 function randKey(?string $type, int $max): string
 {
