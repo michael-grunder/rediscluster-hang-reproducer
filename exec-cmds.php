@@ -24,7 +24,7 @@ const DEFAULTS = [
     'read_timeout' => 0.1,
     'max_retries'  => 1,
     'failover'     => 'distribute',
-    'sleep'        => 0.05,
+    'sleep'        => 0.01,
     'tick'         => 1.0,
     'commands'     => null,
     'types'        => null,
@@ -163,11 +163,11 @@ function connectCluster(array $cfg): RC
     return $c;
 }
 
-$cluster    = null;
-$inMulti    = false;
-$lastPrint  = microtime(true);
-$counter    = 0;
-$cmdStats   = [];                 // name => count
+$cluster   = null;
+$inMulti   = false;
+$lastPrint = microtime(true);
+$counter   = 0;
+$cmdStats  = [];
 
 while (true) {
     try {
@@ -219,12 +219,8 @@ while (true) {
             $lastPrint = $t1;
         }
     } catch (Throwable $e) {
-        fprintf(
-            STDERR,
-            "[%0.3f] Exception: %s\n",
-            microtime(true),
-            $e->getMessage(),
-        );
+        fprintf(STDERR, "[%0.3f] Exception: %s\n", microtime(true),
+                $e->getMessage());
         $cluster  = null;
         $inMulti  = false;
     }
