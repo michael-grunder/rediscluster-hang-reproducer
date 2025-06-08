@@ -14,7 +14,6 @@ Once the containers are running, you can attempt to start Reading keys with `ARe
 
 ```bash
 $ docker compose exec phpredis bash
-# Now you want to start a recording debugging session that reads keys
 $ rr record /root/read-keys.php
 ```
 
@@ -28,7 +27,10 @@ docker compose down redis-node-1
 If you are able to get `RedisCluster` to hang when it tries to reconnect you can pull down the recording session like so
 
 ```bash
+# To copy the run manually (assuming you know the run number
 docker compose cp phpredis-client:/root/.local/share/rr/php-0 ./php-hang-reproducer
+# You can also use `copy-runs.sh` which will copy however many runs it finds
+./copy-runs.sh
 ```
 
 This will copy everything including the PHP binary and all shared libraries, which means  the run can be reproduced locally.
