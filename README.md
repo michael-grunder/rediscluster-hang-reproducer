@@ -29,6 +29,7 @@ If you are able to get `RedisCluster` to hang when it tries to reconnect you can
 ```bash
 # To copy the run manually (assuming you know the run number
 docker compose cp phpredis-client:/root/.local/share/rr/php-0 ./php-hang-reproducer
+
 # You can also use `copy-runs.sh` which will copy however many runs it finds
 ./copy-runs.sh
 ```

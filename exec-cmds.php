@@ -1,8 +1,4 @@
-#!/usr/bin/env php
 <?php declare(strict_types=1);
-
-use RedisCluster as RC;
-
 
 $cliOpts = getopt('', [
     'keys::',          // how many distinct keys in the key-space
@@ -72,11 +68,11 @@ function randZMembers(int $n): array
 function toFailConst(string $s): int
 {
     return match (strtoupper($s)) {
-        'NONE'              => RC::FAILOVER_NONE,
-        'ERROR'             => RC::FAILOVER_ERROR,
-        'DISTRIBUTE'        => RC::FAILOVER_DISTRIBUTE,
-        'DISTRIBUTE_SLAVES' => RC::FAILOVER_DISTRIBUTE_SLAVES,
-        default             => RC::FAILOVER_DISTRIBUTE,
+        'NONE'              => RedisCluster::FAILOVER_NONE,
+        'ERROR'             => RedisCluster::FAILOVER_ERROR,
+        'DISTRIBUTE'        => RedisCluster::FAILOVER_DISTRIBUTE,
+        'DISTRIBUTE_SLAVES' => RedisCluster::FAILOVER_DISTRIBUTE_SLAVES,
+        default             => RedisCluster::FAILOVER_DISTRIBUTE,
     };
 }
 
@@ -148,9 +144,9 @@ const SEEDS = [
     '172.28.0.5:6379', '172.28.0.6:6379', '172.28.0.7:6379',
 ];
 
-function connectCluster(array $cfg): RC
+function connectCluster(array $cfg): RedisCluster
 {
-    $c = new RC(
+    $c = new RedisCluster(
         null,
         SEEDS,
         (float) $cfg['timeout'],
@@ -159,7 +155,7 @@ function connectCluster(array $cfg): RC
         getenv('REDISCLI_AUTH') ?: null,
     );
     $c->setOption(Redis::OPT_MAX_RETRIES, (int) $cfg['max_retries']);
-    $c->setOption(RC::OPT_SLAVE_FAILOVER, toFailConst($cfg['failover']));
+    $c->setOption(RedisCluster::OPT_SLAVE_FAILOVER, toFailConst($cfg['failover']));
     return $c;
 }
 
